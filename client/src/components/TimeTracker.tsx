@@ -28,49 +28,32 @@ export default function TimeTracker({
   onFinish,
   onTimeUpdate,
 }: TimeTrackerProps) {
-  const [time, setTime] = useState(initialTime);
-  const [running, setRunning] = useState(isRunning);
-  const [finished, setFinished] = useState(isFinished);
-
+  // Sync with props instead of local state
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (running && !finished) {
-      interval = setInterval(() => {
-        setTime((prev) => {
-          const newTime = prev + 1;
-          onTimeUpdate?.(newTime);
-          return newTime;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [running, finished, onTimeUpdate]);
+    // No local timer needed - global timer handles this
+  }, []);
 
   const handleStart = () => {
-    if (!finished) {
-      setRunning(true);
+    if (!isFinished) {
       onStart?.();
     }
   };
 
   const handlePause = () => {
-    setRunning(false);
     onPause?.();
   };
 
   const handleFinish = () => {
-    setRunning(false);
-    setFinished(true);
     onFinish?.();
   };
 
   return (
     <div className="flex items-center gap-2">
       <span className="font-mono text-sm font-medium min-w-[70px]" data-testid="text-time">
-        {formatTime(time)}
+        {formatTime(initialTime)}
       </span>
       <div className="flex gap-1">
-        {!running && !finished && (
+        {!isRunning && !isFinished && (
           <Button
             variant="ghost"
             size="icon"
@@ -81,7 +64,7 @@ export default function TimeTracker({
             <Play className="h-4 w-4" />
           </Button>
         )}
-        {running && !finished && (
+        {isRunning && !isFinished && (
           <Button
             variant="ghost"
             size="icon"
@@ -92,7 +75,7 @@ export default function TimeTracker({
             <Pause className="h-4 w-4" />
           </Button>
         )}
-        {!finished && (
+        {!isFinished && (
           <Button
             variant="ghost"
             size="icon"

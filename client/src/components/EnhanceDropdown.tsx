@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Wand2, Loader2 } from "lucide-react";
 
 export type EnhancementType = "general" | "spec" | "bug" | "prompt";
 
@@ -43,7 +43,7 @@ export default function EnhanceDropdown({ onEnhance, isEnhancing = false }: Enha
           {isEnhancing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Sparkles className="h-4 w-4" />
+            <Wand2 className="h-4 w-4" />
           )}
         </Button>
       </DropdownMenuTrigger>

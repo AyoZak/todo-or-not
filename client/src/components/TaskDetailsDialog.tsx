@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ interface TaskDetailsDialogProps {
   onClose: () => void;
   onUpdate: (task: Task) => void;
   onDelete: () => void;
-  onEnhance: (type: EnhancementType) => void;
+  onEnhance: (type: EnhancementType, field: 'title' | 'details') => void;
   isEnhancing?: boolean;
 }
 
@@ -35,16 +35,15 @@ export default function TaskDetailsDialog({
 }: TaskDetailsDialogProps) {
   const [editedTask, setEditedTask] = useState(task);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    setEditedTask(task);
+  }, [task]);
 
   const handleUpdate = (updates: Partial<Task>) => {
-    setEditedTask({ ...editedTask, ...updates });
-    setHasUnsavedChanges(true);
-  };
-
-  const handleSave = () => {
-    onUpdate(editedTask);
-    setHasUnsavedChanges(false);
+    const updated = { ...editedTask, ...updates };
+    setEditedTask(updated);
+    onUpdate(updated);
   };
 
   const handleDelete = () => {
@@ -52,9 +51,12 @@ export default function TaskDetailsDialog({
     onClose();
   };
 
-  const handleEnhance = (type: EnhancementType) => {
-    onEnhance(type);
-    setHasUnsavedChanges(false);
+  const handleEnhanceTitle = (type: EnhancementType) => {
+    onEnhance(type, 'title');
+  };
+
+  const handleEnhanceDetails = (type: EnhancementType) => {
+    onEnhance(type, 'details');
   };
 
   return (
@@ -64,44 +66,37 @@ export default function TaskDetailsDialog({
           <DialogTitle className="flex items-center justify-between gap-4">
             <div className="flex-1 flex items-center gap-2">
               {isEditingTitle ? (
-                <div className="flex-1 flex items-center gap-2">
-                  <Input
-                    value={editedTask.title}
-                    onChange={(e) => handleUpdate({ title: e.target.value })}
-                    onBlur={() => setIsEditingTitle(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setIsEditingTitle(false);
-                    }}
-                    autoFocus
-                    data-testid="input-task-title"
-                    className="font-semibold text-lg"
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setIsEditingTitle(false)}
-                    className="h-8 w-8 flex-shrink-0"
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Input
+                  value={editedTask.title}
+                  onChange={(e) => {
+                    const updated = { ...editedTask, title: e.target.value };
+                    setEditedTask(updated);
+                  }}
+                  onBlur={() => {
+                    handleUpdate({ title: editedTask.title });
+                    setIsEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleUpdate({ title: editedTask.title });
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  data-testid="input-task-title"
+                  className="font-semibold text-lg flex-1"
+                />
               ) : (
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="flex-1">{editedTask.title || "Untitled Task"}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setIsEditingTitle(true)}
-                    data-testid="button-edit-title"
-                    className="h-8 w-8 flex-shrink-0"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                </div>
+                <span 
+                  className="flex-1 cursor-pointer hover:text-primary"
+                  onClick={() => setIsEditingTitle(true)}
+                >
+                  {editedTask.title || "Untitled Task"}
+                </span>
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <EnhanceDropdown onEnhance={handleEnhance} isEnhancing={isEnhancing} />
+              <EnhanceDropdown onEnhance={handleEnhanceTitle} isEnhancing={isEnhancing} />
               <Button
                 variant="ghost"
                 size="icon"
@@ -117,10 +112,17 @@ export default function TaskDetailsDialog({
 
         <div className="space-y-6 mt-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Details</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-muted-foreground">Details</label>
+              <EnhanceDropdown onEnhance={handleEnhanceDetails} isEnhancing={isEnhancing} />
+            </div>
             <Textarea
               value={editedTask.details}
-              onChange={(e) => handleUpdate({ details: e.target.value })}
+              onChange={(e) => {
+                const updated = { ...editedTask, details: e.target.value };
+                setEditedTask(updated);
+              }}
+              onBlur={() => handleUpdate({ details: editedTask.details })}
               placeholder="Add task details..."
               data-testid="textarea-task-details"
               className="min-h-[120px]"
@@ -157,23 +159,7 @@ export default function TaskDetailsDialog({
             />
           </div>
 
-          {hasUnsavedChanges && (
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditedTask(task);
-                  setHasUnsavedChanges(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleSave} data-testid="button-save-task" className="gap-2">
-                <Save className="h-4 w-4" />
-                Save Changes
-              </Button>
-            </div>
-          )}
+
         </div>
       </DialogContent>
     </Dialog>

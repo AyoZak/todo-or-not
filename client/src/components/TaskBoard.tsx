@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -35,6 +35,8 @@ function SortableTaskList({
   onTaskAdd,
   onTaskEnhance,
   enhancingTaskId,
+  openTaskDialog,
+  onTaskDialogChange,
 }: {
   list: TaskListData;
   onUpdate: (list: TaskListData) => void;
@@ -42,8 +44,10 @@ function SortableTaskList({
   onTaskUpdate: (taskId: string, task: Task) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskAdd: () => void;
-  onTaskEnhance: (taskId: string, type: EnhancementType) => void;
+  onTaskEnhance: (taskId: string, type: EnhancementType, field: 'title' | 'details') => void;
   enhancingTaskId?: string;
+  openTaskDialog?: {listId: string, taskId: string} | null;
+  onTaskDialogChange?: (listId: string, taskId: string, open: boolean) => void;
 }) {
   const {
     attributes,
@@ -71,6 +75,8 @@ function SortableTaskList({
         onTaskAdd={onTaskAdd}
         onTaskEnhance={onTaskEnhance}
         enhancingTaskId={enhancingTaskId}
+        openTaskDialog={openTaskDialog}
+        onTaskDialogChange={onTaskDialogChange}
         dragListeners={listeners}
         dragAttributes={attributes}
       />
@@ -79,16 +85,40 @@ function SortableTaskList({
 }
 
 export default function TaskBoard() {
-  const [lists, setLists] = useState<TaskListData[]>([
-    {
+  const [lists, setLists] = useState<TaskListData[]>(() => {
+    const saved = localStorage.getItem('taskflow-lists');
+    return saved ? JSON.parse(saved) : [{
       id: "list-1",
       title: "To Do",
       tasks: [],
-    },
-  ]);
+    }];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('taskflow-lists', JSON.stringify(lists));
+  }, [lists]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [enhancingTaskId, setEnhancingTaskId] = useState<string | null>(null);
+  const [openTaskDialog, setOpenTaskDialog] = useState<{listId: string, taskId: string} | null>(null);
+
+  // Global timer system
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLists(currentLists => 
+        currentLists.map(list => ({
+          ...list,
+          tasks: list.tasks.map(task => 
+            task.isRunning && !task.isFinished
+              ? { ...task, timeSpent: task.timeSpent + 1 }
+              : task
+          )
+        }))
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -190,7 +220,7 @@ export default function TaskBoard() {
       title: "New List",
       tasks: [],
     };
-    setLists([...lists, newList]);
+    setLists([newList, ...lists]);
   };
 
   const handleDeleteList = (listId: string) => {
@@ -217,6 +247,9 @@ export default function TaskBoard() {
         l.id === listId ? { ...l, tasks: [...l.tasks, newTask] } : l
       )
     );
+    
+    // Open dialog for new task
+    setOpenTaskDialog({ listId, taskId: newTask.id });
   };
 
   const handleUpdateTask = (listId: string, taskId: string, updatedTask: Task) => {
@@ -242,48 +275,152 @@ export default function TaskBoard() {
     );
   };
 
-  const handleTaskEnhance = async (listId: string, taskId: string, type: EnhancementType) => {
+  const handleTaskEnhance = async (listId: string, taskId: string, type: EnhancementType, field: 'title' | 'details') => {
     setEnhancingTaskId(taskId);
 
-    // TODO: Implement actual Gemini API call
-    // Simulate API call for demo
-    setTimeout(() => {
+    try {
       const list = lists.find((l) => l.id === listId);
       const task = list?.tasks.find((t) => t.id === taskId);
 
-      if (task) {
-        const enhancedTask = {
-          ...task,
-          originalText: task.originalText || task.title,
-          title: `[Enhanced ${type}] ${task.title}`,
-          details: `${task.details}\n\n[This would be enhanced by Gemini AI based on the "${type}" enhancement type]`,
-        };
-
-        handleUpdateTask(listId, taskId, enhancedTask);
+      if (!task) {
+        setEnhancingTaskId(null);
+        return;
       }
 
+      const taskText = field === 'title' ? (task.title || 'Untitled Task') : (task.details || 'No details');
+      
+      const response = await fetch("/api/enhance-task", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          taskText,
+          enhancementType: type,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error:", response.status, errorText);
+        throw new Error(`Failed to enhance task: ${response.status}`);
+      }
+
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Invalid JSON response:", responseText);
+        throw new Error("Invalid response from server");
+      }
+
+      const { enhancedText } = data;
+      console.log("Received enhanced text:", enhancedText);
+
+      // Clean and extract only the essential content
+      let cleanText = enhancedText
+        .replace(/\*\*/g, '') // Remove bold markdown
+        .replace(/\*/g, '')   // Remove italic markdown
+        .replace(/#{1,6}\s/g, '') // Remove headers
+        .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+        .replace(/`([^`]+)`/g, '$1') // Remove inline code
+        .replace(/^(Here's|Here are|Okay,|Sure,|I'll|Let me|The following|Below is).*?:/gmi, '') // Remove intro phrases
+        .replace(/^(Option \d+:|Why it's better:|Key Considerations:|To give you).*$/gmi, '') // Remove explanation sections
+        .replace(/\n\s*\n/g, '\n') // Remove extra line breaks
+        .trim();
+      
+      // Extract the actual enhanced content (skip explanatory text)
+      const lines = cleanText.split('\n').filter(line => line.trim().length > 0);
+      
+      // Look for quoted content or the first substantial line
+      let extractedContent = '';
+      for (const line of lines) {
+        if (line.includes('"') && line.length > 10) {
+          // Extract quoted content
+          const match = line.match(/"([^"]+)"/g);
+          if (match) {
+            extractedContent = match[0].replace(/"/g, '');
+            break;
+          }
+        } else if (!line.toLowerCase().includes('option') && 
+                   !line.toLowerCase().includes('why') &&
+                   !line.toLowerCase().includes('better') &&
+                   !line.toLowerCase().includes('consider') &&
+                   line.length > 10) {
+          extractedContent = line;
+          break;
+        }
+      }
+      
+      cleanText = extractedContent || lines[0] || cleanText.substring(0, 200);
+
+      const enhancedTask = {
+        ...task,
+        originalText: task.originalText || (field === 'title' ? task.title : task.details),
+        ...(field === 'title' 
+          ? { title: cleanText.split('\n')[0].substring(0, 100) || cleanText.substring(0, 100) }
+          : { details: cleanText }
+        ),
+      };
+      console.log("Updating task with:", enhancedTask);
+
+      // Force immediate update
+      setLists(currentLists => 
+        currentLists.map(l => 
+          l.id === listId 
+            ? {
+                ...l,
+                tasks: l.tasks.map(t => t.id === taskId ? enhancedTask : t)
+              }
+            : l
+        )
+      );
+    } catch (error) {
+      console.error("Enhancement failed:", error);
+      // You could add a toast notification here
+    } finally {
       setEnhancingTaskId(null);
-    }, 2000);
+    }
   };
 
   const allTaskIds = lists.flatMap((list) => list.tasks.map((task) => task.id));
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      <header className="h-14 border-b flex items-center justify-between px-6">
-        <h1 className="text-xl font-semibold" data-testid="text-app-title">
-          TaskFlow AI
-        </h1>
+      <header className="h-16 border-b flex items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" className="h-10 sm:h-14 w-auto text-foreground">
+            <circle cx="40" cy="40" r="15" fill="none" stroke="currentColor" strokeWidth="3"/>
+            <circle cx="40" cy="40" r="25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 5"/>
+            <circle cx="55" cy="25" r="3" fill="currentColor"/>
+          </svg>
+          <div className="flex flex-col">
+            <h1 className="text-lg sm:text-xl font-semibold" data-testid="text-app-title">
+              TodoOrNot
+            </h1>
+            <p className="text-xs text-muted-foreground hidden sm:block">
+              Keeps your hours in check, and ruins your excuses
+            </p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleAddList} variant="default" className="gap-2" data-testid="button-add-list">
-            <Plus className="h-4 w-4" />
-            New List
+          <Button 
+            onClick={handleAddList} 
+            variant="outline" 
+            size="sm"
+            className="gap-1 sm:gap-2 hover:bg-accent font-medium px-2 sm:px-4 py-2" 
+            data-testid="button-add-list"
+          >
+            <FolderPlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Create New List</span>
+            <span className="sm:hidden">New</span>
           </Button>
           <ThemeToggle />
         </div>
       </header>
 
-      <main className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -291,7 +428,7 @@ export default function TaskBoard() {
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-6 h-full">
+          <div className="grid gap-4 sm:gap-6 w-full" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', maxWidth: '100%', margin: '0 auto', justifyContent: 'center' }}>
             <SortableContext
               items={lists.map((l) => l.id)}
               strategy={horizontalListSortingStrategy}
@@ -305,8 +442,10 @@ export default function TaskBoard() {
                   onTaskUpdate={(taskId, task) => handleUpdateTask(list.id, taskId, task)}
                   onTaskDelete={(taskId) => handleDeleteTask(list.id, taskId)}
                   onTaskAdd={() => handleAddTask(list.id)}
-                  onTaskEnhance={(taskId, type) => handleTaskEnhance(list.id, taskId, type)}
+                  onTaskEnhance={(taskId, type, field) => handleTaskEnhance(list.id, taskId, type, field)}
                   enhancingTaskId={enhancingTaskId || undefined}
+                  openTaskDialog={openTaskDialog}
+                  onTaskDialogChange={(listId, taskId, open) => setOpenTaskDialog(open ? {listId, taskId} : null)}
                 />
               ))}
             </SortableContext>

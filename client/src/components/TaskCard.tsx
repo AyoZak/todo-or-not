@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GripVertical, Trash2, Save, Edit3 } from "lucide-react";
+import { GripVertical, Play, Pause, Check, Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import EnhanceDropdown, { type EnhancementType } from "./EnhanceDropdown";
-import TimeTracker from "./TimeTracker";
+import TimeTracker, { formatTime } from "./TimeTracker";
 import { type TaskColor } from "./ColorPicker";
 import {
   Dialog,
@@ -29,13 +29,14 @@ interface TaskCardProps {
   task: Task;
   onUpdate: (task: Task) => void;
   onDelete: () => void;
-  onEnhance: (type: EnhancementType) => void;
+  onEnhance: (type: EnhancementType, field: 'title' | 'details') => void;
   isEnhancing?: boolean;
+  isDialogOpen?: boolean;
+  onDialogChange?: (open: boolean) => void;
 }
 
-export default function TaskCard({ task, onUpdate, onDelete, onEnhance, isEnhancing }: TaskCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isEditingTitle, setIsEditingTitle] = useState(!task.title);
+export default function TaskCard({ task, onUpdate, onDelete, onEnhance, isEnhancing, isDialogOpen = false, onDialogChange }: TaskCardProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   const {
     attributes,
@@ -52,22 +53,30 @@ export default function TaskCard({ task, onUpdate, onDelete, onEnhance, isEnhanc
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const colorBorderClass = task.color ? `border-l-4 border-l-task-${task.color}` : "";
-
-  const handleTitleEdit = () => {
-    if (task.title) {
-      setIsEditingTitle(false);
-    }
+  const getColorClasses = () => {
+    if (!task.color) return "";
+    return {
+      purple: "border-l-4 border-l-purple-500",
+      blue: "border-l-4 border-l-blue-500", 
+      green: "border-l-4 border-l-green-500",
+      orange: "border-l-4 border-l-orange-500",
+      red: "border-l-4 border-l-red-500",
+      pink: "border-l-4 border-l-pink-500"
+    }[task.color] || "";
   };
+  
+  const colorBorderClass = getColorClasses();
+
+
 
   return (
     <>
       <div
         ref={setNodeRef}
         style={style}
-        className={`p-3 bg-card rounded-md border ${colorBorderClass} hover-elevate cursor-pointer flex items-center gap-2`}
+        className={`p-2 sm:p-3 bg-card rounded-md border ${colorBorderClass} ${task.isFinished ? 'opacity-75 bg-muted' : ''} hover-elevate cursor-pointer flex items-center gap-1 sm:gap-2`}
         data-testid={`card-task-${task.id}`}
-        onClick={() => !isEditingTitle && setIsOpen(true)}
+        onClick={() => onDialogChange?.(true)}
       >
         <button
           {...attributes}
@@ -82,13 +91,66 @@ export default function TaskCard({ task, onUpdate, onDelete, onEnhance, isEnhanc
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3
-              className="font-medium text-sm truncate flex-1"
+              className={`font-medium text-xs sm:text-sm truncate flex-1 ${task.isFinished ? 'line-through text-muted-foreground' : ''}`}
               data-testid="text-task-title"
             >
-              {task.title || "Untitled Task"}
+              {task.isFinished && '✓ '}{task.title || "Untitled Task"}
             </h3>
-            <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-              <EnhanceDropdown onEnhance={onEnhance} isEnhancing={isEnhancing} />
+            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {task.color && (
+                <div 
+                  className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${
+                    {
+                      purple: "bg-purple-500",
+                      blue: "bg-blue-500",
+                      green: "bg-green-500", 
+                      orange: "bg-orange-500",
+                      red: "bg-red-500",
+                      pink: "bg-pink-500"
+                    }[task.color]
+                  }`}
+                />
+              )}
+              <span className="text-xs font-mono text-muted-foreground hidden sm:inline">
+                {formatTime(task.timeSpent)}
+              </span>
+              {!task.isFinished && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (task.isRunning) {
+                      onUpdate({ ...task, isRunning: false });
+                    } else {
+                      onUpdate({ ...task, isRunning: true });
+                    }
+                  }}
+                  className="h-5 w-5 sm:h-6 sm:w-6"
+                >
+                  {task.isRunning ? <Pause className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Play className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
+                </Button>
+              )}
+              {!task.isFinished && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onUpdate({ ...task, isRunning: false, isFinished: true })}
+                  className="h-5 w-5 sm:h-6 sm:w-6"
+                >
+                  <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                </Button>
+              )}
+              <div className="hidden sm:block">
+                <EnhanceDropdown onEnhance={(type) => onEnhance(type, 'title')} isEnhancing={isEnhancing} />
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onDelete()}
+                className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+              </Button>
             </div>
           </div>
         </div>
@@ -96,8 +158,8 @@ export default function TaskCard({ task, onUpdate, onDelete, onEnhance, isEnhanc
 
       <TaskDetailsDialog
         task={task}
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
+        isOpen={isDialogOpen}
+        onClose={() => onDialogChange?.(false)}
         onUpdate={onUpdate}
         onDelete={onDelete}
         onEnhance={onEnhance}
