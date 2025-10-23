@@ -51,8 +51,11 @@ npm install
 
 3. Set up environment variables:
 ```bash
-# Add your Gemini API key
-export GEMINI_API_KEY="your-gemini-api-key"
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env and add your Gemini API key
+# Get your API key from: https://makersuite.google.com/app/apikey
 ```
 
 4. Start the development server:
@@ -123,6 +126,15 @@ The app will be available at `http://localhost:5000`
 ## License
 
 MIT License - see LICENSE file for details
+
+## Environment Variables
+
+The following environment variables are required:
+
+- `GEMINI_API_KEY`: Your Google Gemini API key (required)
+- `PORT`: Server port (optional, defaults to 5000)
+
+See `.env.example` for reference.
 
 ## Author
 
