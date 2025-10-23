@@ -84,7 +84,7 @@ export default {
         // Task color coding system
         task: {
           purple: "hsl(270 70% 65% / <alpha-value>)",
-          blue: "hsl(217 91% 60% / <alpha-value>)",
+          blue: "hsl(262 83% 58% / <alpha-value>)",
           green: "hsl(142 71% 45% / <alpha-value>)",
           orange: "hsl(25 95% 53% / <alpha-value>)",
           red: "hsl(0 72% 51% / <alpha-value>)",

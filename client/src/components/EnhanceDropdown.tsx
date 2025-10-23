@@ -34,22 +34,16 @@ export default function EnhanceDropdown({ onEnhance, isEnhancing = false }: Enha
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="default"
-          size="sm"
+          variant="ghost"
+          size="icon"
           disabled={isEnhancing}
           data-testid="button-enhance"
-          className="gap-2"
+          className="h-8 w-8"
         >
           {isEnhancing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Enhancing...
-            </>
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Enhance
-            </>
+            <Sparkles className="h-4 w-4" />
           )}
         </Button>
       </DropdownMenuTrigger>

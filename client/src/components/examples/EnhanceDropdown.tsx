@@ -11,8 +11,9 @@ export default function EnhanceDropdownExample() {
   };
 
   return (
-    <div className="p-4">
+    <div className="p-4 flex items-center gap-4">
       <EnhanceDropdown onEnhance={handleEnhance} isEnhancing={isEnhancing} />
+      <span className="text-sm text-muted-foreground">Icon-only enhance button</span>
     </div>
   );
 }
